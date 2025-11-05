@@ -3,11 +3,11 @@ package com.example.gemmabench.inference
 import com.example.gemmabench.utils.Constants
 
 /**
- * Æ­¹ÈBn-š
+ * Text generation configuration
  *
- * @param topK Top-kµó×êó°nK$1-100¨h	
- * @param temperature )¦Ñéáü¿0.0gzš„1.0géóÀà	
- * @param randomSeed qp·üÉş'n_	
+ * @param topK Top-k sampling parameter (1-100 range)
+ * @param temperature Sampling temperature (0.0 = deterministic, 1.0 = creative)
+ * @param randomSeed Random seed for reproducible results
  */
 data class GenerationConfig(
     val topK: Int = Constants.TOP_K,
@@ -16,12 +16,12 @@ data class GenerationConfig(
 )
 
 /**
- * PœnáÈê¯¹
+ * Performance metrics
  *
- * @param firstTokenMs ŞÈü¯ó~gnì¤Æó·ßêÒ	
- * @param totalTokens UŒ_ÏÈü¯óp
- * @param tokensPerSec Èü¯ó¦Èü¯ó/Ò	
- * @param delegate (UŒ_Çê²üÈGPU/NNAPI/XNNPACK/CPU	
+ * @param firstTokenMs Time to first token in milliseconds
+ * @param totalTokens Total number of tokens generated
+ * @param tokensPerSec Token generation speed (tokens/second)
+ * @param delegate Hardware acceleration delegate (GPU/NNAPI/XNNPACK/CPU)
  */
 data class GenerationMetrics(
     val firstTokenMs: Long = 0L,
@@ -30,7 +30,7 @@ data class GenerationMetrics(
     val delegate: String = "Unknown"
 ) {
     /**
-     * º“L­„YDbgÕ©üŞÃÈ
+     * Format metrics for display
      */
     fun formatForDisplay(): String {
         return String.format(

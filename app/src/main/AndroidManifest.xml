@@ -5,6 +5,13 @@
     <!-- インターネット権限（モデルダウンロード用） -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- フォアグラウンドサービス権限（長時間処理の中断防止） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <!-- 通知権限（Android 13+で必要、将来の実装に備えて） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"

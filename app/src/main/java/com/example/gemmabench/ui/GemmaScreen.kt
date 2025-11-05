@@ -13,7 +13,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.gemmabench.utils.Constants
 
 /**
- * Gemma Benchmark·§Û;b
+ * Gemma Benchmark main screen
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,7 +25,7 @@ fun GemmaScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Gemma 3n ŸÛ¡ﬁ¸Ø") },
+                title = { Text("Gemma 3n Chat") },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -39,7 +39,7 @@ fun GemmaScreen(
                 .padding(paddingValues)
         ) {
             when (val state = uiState) {
-                is UiState.Initializing -> LoadingScreen("w’-...")
+                is UiState.Initializing -> LoadingScreen("Initializing...")
                 is UiState.Downloading -> DownloadingScreen(state.progress)
                 is UiState.Loading -> LoadingScreen(state.message)
                 is UiState.Ready -> ChatScreen(state, viewModel)
@@ -50,7 +50,7 @@ fun GemmaScreen(
 }
 
 /**
- * Ì¸«£Û∞;b
+ * Loading screen
  */
 @Composable
 fun LoadingScreen(message: String) {
@@ -73,7 +73,7 @@ fun LoadingScreen(message: String) {
 }
 
 /**
- * ¿¶ÛÌ¸…2W;b
+ * Download progress screen
  */
 @Composable
 fun DownloadingScreen(progress: Float) {
@@ -85,7 +85,7 @@ fun DownloadingScreen(progress: Float) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "‚«Î¿¶ÛÌ¸…-",
+            text = "Downloading Model",
             style = MaterialTheme.typography.headlineSmall
         )
         Spacer(modifier = Modifier.height(24.dp))
@@ -107,7 +107,7 @@ fun DownloadingScreen(progress: Float) {
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "ﬁn4.4GBn¿¶ÛÌ¸…L≈ÅgY",
+            text = "This is a 4.4GB model and may take a while",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -115,7 +115,7 @@ fun DownloadingScreen(progress: Float) {
 }
 
 /**
- * ¡„√»;b
+ * Chat screen
  */
 @Composable
 fun ChatScreen(state: UiState.Ready, viewModel: GemmaViewModel) {
@@ -127,7 +127,7 @@ fun ChatScreen(state: UiState.Ready, viewModel: GemmaViewModel) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // ◊ÌÛ◊»eõ®Í¢
+        // Prompt input field
         OutlinedTextField(
             value = promptText,
             onValueChange = { promptText = it },
@@ -135,12 +135,12 @@ fun ChatScreen(state: UiState.Ready, viewModel: GemmaViewModel) {
                 .fillMaxWidth()
                 .height(120.dp),
             label = { Text(Constants.PROMPT_HINT) },
-            placeholder = { Text("ã: Sìkao Ân)kdDfYHf") },
+            placeholder = { Text("Example: Explain how neural networks work") },
             enabled = !state.isGenerating,
             maxLines = 5
         )
 
-        // üL˚\b˚ØÍ¢‹øÛ
+        // Action buttons
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -179,7 +179,7 @@ fun ChatScreen(state: UiState.Ready, viewModel: GemmaViewModel) {
             }
         }
 
-        // ®È¸·√ª¸∏h:
+        // Error message display
         if (state.errorMessage != null) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -189,14 +189,14 @@ fun ChatScreen(state: UiState.Ready, viewModel: GemmaViewModel) {
                 )
             ) {
                 Text(
-                    text = "† ${state.errorMessage}",
+                    text = "Error: ${state.errorMessage}",
                     modifier = Modifier.padding(12.dp),
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
         }
 
-        // ˙õ®Í¢
+        // Output display
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -205,14 +205,14 @@ fun ChatScreen(state: UiState.Ready, viewModel: GemmaViewModel) {
             val scrollState = rememberScrollState()
 
             LaunchedEffect(state.displayText) {
-                // ∞WD∆≠π»L˝†Uå_âÍ’πØÌ¸Î
+                // Auto-scroll to bottom when new text is generated
                 if (state.displayText.isNotEmpty()) {
                     scrollState.animateScrollTo(scrollState.maxValue)
                 }
             }
 
             if (state.displayText.isEmpty()) {
-                // ◊Ï¸π€Î¿¸
+                // Empty state message
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -220,14 +220,13 @@ fun ChatScreen(state: UiState.Ready, viewModel: GemmaViewModel) {
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "SSkPúLh:Uå~Y\n\n
-Ën∆≠π»’£¸Î…k◊ÌÛ◊»íeõWf‹øÛíºWfO`UD",
+                        text = "Generated output will appear here\n\nThis model can answer questions, explain concepts, and help with various tasks",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             } else {
-                // ∆≠π»h:
+                // Generated text display
                 Text(
                     text = state.displayText,
                     modifier = Modifier
@@ -240,7 +239,7 @@ fun ChatScreen(state: UiState.Ready, viewModel: GemmaViewModel) {
                 )
             }
 
-            // -§Û∏±¸ø¸
+            // Generation progress indicator
             if (state.isGenerating) {
                 Box(
                     modifier = Modifier
@@ -255,13 +254,13 @@ fun ChatScreen(state: UiState.Ready, viewModel: GemmaViewModel) {
             }
         }
 
-        // ·»ÍØπh:
+        // Performance metrics display
         MetricsCard(state.metrics)
     }
 }
 
 /**
- * ·»ÍØπh:´¸…
+ * Performance metrics card
  */
 @Composable
 fun MetricsCard(metrics: com.example.gemmabench.inference.GenerationMetrics) {
@@ -276,7 +275,7 @@ fun MetricsCard(metrics: com.example.gemmabench.inference.GenerationMetrics) {
             modifier = Modifier.padding(12.dp)
         ) {
             Text(
-                text = "=  —’©¸ﬁÛπ·»ÍØπ",
+                text = "Performance Metrics",
                 style = MaterialTheme.typography.titleSmall
             )
             Spacer(modifier = Modifier.height(4.dp))
@@ -291,7 +290,7 @@ fun MetricsCard(metrics: com.example.gemmabench.inference.GenerationMetrics) {
 }
 
 /**
- * ®È¸;b
+ * Error screen
  */
 @Composable
 fun ErrorScreen(message: String) {
@@ -303,7 +302,7 @@ fun ErrorScreen(message: String) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "† ®È¸LzW~W_",
+            text = "Error: Initialization Failed",
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.error
         )

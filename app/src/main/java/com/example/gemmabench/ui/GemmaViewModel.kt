@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 /**
  * Gemma Chat ViewModel
  *
- * UI¶K¡h¨Ö¨ó¸ón6¡’ÅS
+ * Manages UI state and inference logic
  */
 class GemmaViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -33,42 +33,42 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
     private var generationJob: Job? = null
 
     init {
-        // ¢×êwÕBkâÇë’‹Ë
+        // Initialize model at startup
         initializeModel()
     }
 
     /**
-     * âÇë×í»¹
+     * Initialize the model
      *
-     * 1. À¦óíüÉº
-     * 2. Åj‰À¦óíüÉŸL
-     * 3. âÇë
+     * 1. Check if model exists
+     * 2. Download if needed
+     * 3. Initialize inference
      */
     private fun initializeModel() {
         viewModelScope.launch {
             try {
-                // À¦óíüÉº
+                // Check if model exists
                 if (!downloader.isModelDownloaded()) {
-                    Log.i(Constants.LOG_TAG, "âÇë*úÀ¦óíüÉ‹Ë")
+                    Log.i(Constants.LOG_TAG, "Model not found, starting download")
                     _uiState.value = UiState.Downloading(0f)
 
                     downloader.downloadModel { progress ->
                         _uiState.value = UiState.Downloading(progress)
                     }.onFailure { error ->
-                        val errorMsg = "À¦óíüÉ¨éü: ${error.message}"
+                        val errorMsg = "Download failed: ${error.message}"
                         Log.e(Constants.LOG_TAG, errorMsg, error)
                         _uiState.value = UiState.Error(errorMsg)
                         return@launch
                     }
                 }
 
-                // âÇë
-                _uiState.value = UiState.Loading("âÇë-...\nÞo30-60ÒKKŠ~Y")
+                // Initialize inference
+                _uiState.value = UiState.Loading("Loading model...\nThis may take 30-60 seconds")
 
                 val modelPath = downloader.getModelPath().absolutePath
                 inference.initialize(modelPath)
                     .onSuccess { delegate ->
-                        Log.i(Constants.LOG_TAG, "Ÿ: delegate=$delegate")
+                        Log.i(Constants.LOG_TAG, "Initialization successful: delegate=$delegate")
                         _uiState.value = UiState.Ready(
                             promptText = "",
                             outputText = "",
@@ -78,13 +78,13 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
                     .onFailure { error ->
-                        val errorMsg = "¨éü: ${error.message}"
+                        val errorMsg = "Initialization failed: ${error.message}"
                         Log.e(Constants.LOG_TAG, errorMsg, error)
                         _uiState.value = UiState.Error(errorMsg)
                     }
 
             } catch (e: Exception) {
-                val errorMsg = "ˆWjD¨éü: ${e.message}"
+                val errorMsg = "Unexpected error: ${e.message}"
                 Log.e(Constants.LOG_TAG, errorMsg, e)
                 _uiState.value = UiState.Error(errorMsg)
             }
@@ -92,25 +92,25 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Æ­¹È’‹Ë
+     * Start text generation
      *
-     * @param prompt e›×íó×È
+     * @param prompt Input prompt text
      */
     fun generate(prompt: String) {
         if (prompt.isBlank()) {
-            Log.w(Constants.LOG_TAG, "zn×íó×È")
+            Log.w(Constants.LOG_TAG, "Empty prompt")
             return
         }
 
-        // âXn’­ãó»ë
+        // Cancel previous generation if any
         generationJob?.cancel()
 
         val currentState = (_uiState.value as? UiState.Ready) ?: run {
-            Log.w(Constants.LOG_TAG, "Ready¶KgojD_’¹­Ã×")
+            Log.w(Constants.LOG_TAG, "Cannot generate: not in Ready state")
             return
         }
 
-        // ‹Ë¶Kkô°
+        // Update state to generating
         _uiState.value = currentState.copy(
             isGenerating = true,
             outputText = "",
@@ -124,10 +124,10 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
         generationJob = viewModelScope.launch {
             inference.generateStreaming(prompt)
                 .onStart {
-                    Log.d(Constants.LOG_TAG, "Õíü‹Ë")
+                    Log.d(Constants.LOG_TAG, "Generation started")
                 }
                 .catch { error ->
-                    val errorMsg = "¨éü: ${error.message}"
+                    val errorMsg = "Generation error: ${error.message}"
                     Log.e(Constants.LOG_TAG, errorMsg, error)
 
                     val state = _uiState.value as? UiState.Ready
@@ -139,18 +139,18 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
                 .collect { result ->
                     when (result) {
                         is StreamingResult.Started -> {
-                            Log.d(Constants.LOG_TAG, "‹Ëå")
+                            Log.d(Constants.LOG_TAG, "Streaming started")
                         }
 
                         is StreamingResult.TokenGenerated -> {
                             tokenCount++
 
-                            // ÞÈü¯óì¤Æó·2
+                            // Record first token time
                             if (firstTokenTime == null) {
                                 firstTokenTime = System.currentTimeMillis() - startTime
                             }
 
-                            // UIk!ý 
+                            // Update UI with new token
                             val state = _uiState.value as? UiState.Ready ?: return@collect
                             _uiState.value = state.copy(
                                 outputText = state.outputText + result.text
@@ -160,7 +160,7 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
                         is StreamingResult.Completed -> {
                             Log.i(
                                 Constants.LOG_TAG,
-                                "Œ†: ${result.metrics.formatForDisplay()}"
+                                "Generation complete: ${result.metrics.formatForDisplay()}"
                             )
 
                             val state = _uiState.value as? UiState.Ready ?: return@collect
@@ -171,7 +171,7 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
                         }
 
                         is StreamingResult.Error -> {
-                            Log.e(Constants.LOG_TAG, "¨éü: ${result.message}")
+                            Log.e(Constants.LOG_TAG, "Streaming error: ${result.message}")
 
                             val state = _uiState.value as? UiState.Ready ?: return@collect
                             _uiState.value = state.copy(
@@ -185,18 +185,18 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * ’\b
+     * Stop generation
      */
     fun stopGeneration() {
         generationJob?.cancel()
-        Log.i(Constants.LOG_TAG, "\b")
+        Log.i(Constants.LOG_TAG, "Generation stopped")
 
         val state = _uiState.value as? UiState.Ready ?: return
         _uiState.value = state.copy(isGenerating = false)
     }
 
     /**
-     * ú›Æ­¹È’¯ê¢
+     * Clear output text
      */
     fun clearOutput() {
         val state = _uiState.value as? UiState.Ready ?: return
@@ -204,11 +204,11 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
             outputText = "",
             errorMessage = null
         )
-        Log.d(Constants.LOG_TAG, "ú›¯ê¢")
+        Log.d(Constants.LOG_TAG, "Output cleared")
     }
 
     /**
-     * ê½ü¹ã>
+     * Clean up resources
      */
     override fun onCleared() {
         super.onCleared()
@@ -219,19 +219,19 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
 }
 
 /**
- * UI¶K
+ * UI state types
  */
 sealed class UiState {
-    /** - */
+    /** Initializing */
     object Initializing : UiState()
 
-    /** À¦óíüÉ- */
+    /** Downloading model */
     data class Downloading(val progress: Float) : UiState()
 
-    /** íüÉ- */
+    /** Loading model */
     data class Loading(val message: String) : UiState()
 
-    /** –™Œ†ûŸL- */
+    /** Ready to generate */
     data class Ready(
         val promptText: String,
         val outputText: String,
@@ -240,21 +240,20 @@ sealed class UiState {
         val errorMessage: String?
     ) : UiState() {
         /**
-         * h:(Æ­¹Èáâêêü¯2bn_
-P-š	
+         * Display text (truncated if too long to prevent memory issues)
          */
         val displayText: String
             get() = if (outputText.length > MAX_DISPLAY_LENGTH) {
-                "...(e)...\n" + outputText.takeLast(MAX_DISPLAY_LENGTH)
+                "...(truncated)...\n" + outputText.takeLast(MAX_DISPLAY_LENGTH)
             } else {
                 outputText
             }
 
         companion object {
-            private const val MAX_DISPLAY_LENGTH = 10_000  // 10,000‡W~g
+            private const val MAX_DISPLAY_LENGTH = 10_000  // 10,000 characters
         }
     }
 
-    /** ¨éü */
+    /** Error state */
     data class Error(val message: String) : UiState()
 }
