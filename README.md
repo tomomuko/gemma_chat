@@ -79,10 +79,11 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 1. **Hugging Faceトークンの取得**
    - https://huggingface.co/settings/tokens にアクセス
-   - 「New token」をクリック
+   - 「Create new token」をクリック
    - Token名を入力 (例: gemma-chat-app)
-   - Role: Read を選択
-   - 「Generate a token」をクリック
+   - Repositories permissions で `gemma-3n-E4B-it-litert-lm` を選択
+   - Read access to contents of selected repos を選択
+   - 「Create token」をクリック
    - トークンをコピー (hf_で始まる文字列)
 
 2. **モデルのライセンス同意**
@@ -99,7 +100,7 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 4. **モデルダウンロード**
    - 4.4GBのダウンロードが開始 (Wi-Fi推奨)
    - 進捗バーで進行状況を確認
-   - 中断しても次回起動時に続きから再開
+   - ~~中断しても次回起動時に続きから再開~~ → 実行不可能になるバグを修正予定
 
 5. **モデル初期化**
    - ダウンロード完了後、自動的にモデルを読み込み (30-60秒)
@@ -164,15 +165,6 @@ const val TOP_K = 40               // Top-k サンプリング
 const val TEMPERATURE = 0.8f       // 温度 (高いほど創造的)
 const val RANDOM_SEED = 101        // 乱数シード
 ```
-
-## パフォーマンス
-
-### 参考値 (Samsung S24 Ultra)
-
-| モード | CPU | GPU |
-|---------|-----|-----|
-| Prefill | 73.5 tok/s | 548.0 tok/s |
-| Decode | 9.2 tok/s | 9.4 tok/s |
 
 ### 所要時間
 
