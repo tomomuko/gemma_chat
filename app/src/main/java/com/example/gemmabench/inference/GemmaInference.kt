@@ -24,16 +24,17 @@ class GemmaInference(private val context: Context) {
      * Initialize the model
      *
      * @param modelPath Path to the .task or .litert_lm model file
+     * @param maxTokens Maximum number of tokens to generate (default from Constants)
      * @return Success with delegate info, or failure with error
      */
-    suspend fun initialize(modelPath: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun initialize(modelPath: String, maxTokens: Int = Constants.MAX_TOKENS): Result<String> = withContext(Dispatchers.IO) {
         try {
-            Log.i(Constants.LOG_TAG, "Initializing model: $modelPath")
+            Log.i(Constants.LOG_TAG, "Initializing model: $modelPath (maxTokens=$maxTokens)")
 
             // Configure LlmInference options
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelPath)
-                .setMaxTokens(Constants.MAX_TOKENS)
+                .setMaxTokens(maxTokens)
                 .build()
 
             // Create LlmInference instance
