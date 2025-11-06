@@ -9,6 +9,7 @@ import com.example.gemmabench.inference.GenerationMetrics
 import com.example.gemmabench.inference.StreamingResult
 import com.example.gemmabench.utils.Constants
 import com.example.gemmabench.utils.ModelDownloader
+import com.example.gemmabench.utils.TokenManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,7 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val inference = GemmaInference(application)
     private val downloader = ModelDownloader(application)
+    private val tokenManager = TokenManager(application)
 
     private val _uiState = MutableStateFlow<UiState>(UiState.Initializing)
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -40,19 +42,27 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Initialize the model
      *
-     * 1. Check if model exists
-     * 2. Download if needed
+     * 1. Check if model exists in internal storage
+     * 2. Download with token if needed
      * 3. Initialize inference
      */
     private fun initializeModel() {
         viewModelScope.launch {
             try {
-                // Check if model exists
+                // Check if model exists in internal storage
                 if (!downloader.isModelDownloaded()) {
+                    // Check for saved token
+                    val token = tokenManager.getToken()
+                    if (token == null) {
+                        Log.i(Constants.LOG_TAG, "No token found, need user input")
+                        _uiState.value = UiState.NeedToken
+                        return@launch
+                    }
+
                     Log.i(Constants.LOG_TAG, "Model not found, starting download")
                     _uiState.value = UiState.Downloading(0f)
 
-                    downloader.downloadModel { progress ->
+                    downloader.downloadModel(token) { progress ->
                         _uiState.value = UiState.Downloading(progress)
                     }.onFailure { error ->
                         val errorMsg = "Download failed: ${error.message}"
@@ -208,6 +218,24 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Save Hugging Face token and start download
+     *
+     * @param token Hugging Face API token
+     */
+    fun saveTokenAndDownload(token: String) {
+        viewModelScope.launch {
+            // Validate and save token
+            if (!tokenManager.saveToken(token)) {
+                _uiState.value = UiState.Error("Invalid token format. Token must start with 'hf_'")
+                return@launch
+            }
+
+            // Start download
+            initializeModel()
+        }
+    }
+
+    /**
      * Clean up resources
      */
     override fun onCleared() {
@@ -224,6 +252,9 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
 sealed class UiState {
     /** Initializing */
     object Initializing : UiState()
+
+    /** Need Hugging Face token */
+    object NeedToken : UiState()
 
     /** Downloading model */
     data class Downloading(val progress: Float) : UiState()

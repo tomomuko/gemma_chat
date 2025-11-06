@@ -4,19 +4,25 @@ import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
+import java.util.concurrent.TimeUnit
 
 /**
- * Model file downloader
+ * Model downloader with Hugging Face authentication
  *
- * Downloads Gemma 3n model (4.4GB) from Hugging Face
+ * Downloads Gemma 3n model (4.4GB) with resumable downloads
  */
 class ModelDownloader(private val context: Context) {
 
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(Constants.DOWNLOAD_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        .readTimeout(Constants.DOWNLOAD_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        .build()
+
     /**
-     * Get model file path
+     * Get model file path in internal storage
      *
      * @return File reference to the model
      */
@@ -38,93 +44,119 @@ class ModelDownloader(private val context: Context) {
             val sizeMB = modelFile.length() / (1024 * 1024)
             Log.d(Constants.LOG_TAG, "Model found: size=${sizeMB}MB, valid=$isValid")
         } else {
-            Log.d(Constants.LOG_TAG, "Model not found")
+            Log.d(Constants.LOG_TAG, "Model not found in internal storage")
         }
 
         return isValid
     }
 
     /**
-     * Download model from Hugging Face
+     * Download model from Hugging Face with authentication
      *
+     * @param token Hugging Face API token
      * @param onProgress Progress callback (0.0-1.0)
      * @return Success with file path, or failure with error
      */
     suspend fun downloadModel(
+        token: String,
         onProgress: (Float) -> Unit
     ): Result<String> = withContext(Dispatchers.IO) {
         val modelFile = getModelPath()
 
         try {
+            // Check if model already exists and is complete
+            if (modelFile.exists() && modelFile.length() == Constants.MODEL_SIZE_MB * 1024 * 1024) {
+                Log.i(Constants.LOG_TAG, "Model already downloaded")
+                return@withContext Result.success(modelFile.absolutePath)
+            }
+
             Log.i(Constants.LOG_TAG, "Starting download: ${Constants.MODEL_URL}")
 
-            // Delete existing partial file if needed
-            if (modelFile.exists()) {
-                Log.w(Constants.LOG_TAG, "Deleting existing partial file")
-                modelFile.delete()
+            // Check for partial download
+            val startByte = if (modelFile.exists()) modelFile.length() else 0L
+            if (startByte > 0) {
+                Log.i(Constants.LOG_TAG, "Resuming download from ${startByte / (1024 * 1024)}MB")
             }
 
-            // Configure HTTP connection
-            val url = URL(Constants.MODEL_URL)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.connectTimeout = Constants.DOWNLOAD_TIMEOUT_MS.toInt()
-            connection.readTimeout = Constants.DOWNLOAD_TIMEOUT_MS.toInt()
-            connection.requestMethod = "GET"
+            // Build request with authentication and resume support
+            val request = Request.Builder()
+                .url(Constants.MODEL_URL)
+                .header("Authorization", "Bearer $token")
+                .apply {
+                    if (startByte > 0) {
+                        addHeader("Range", "bytes=$startByte-")
+                    }
+                }
+                .build()
 
-            connection.connect()
+            // Execute download
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val errorMsg = when (response.code) {
+                        401 -> "${Constants.ERROR_INVALID_TOKEN}: HTTP ${response.code}"
+                        403 -> "${Constants.ERROR_DOWNLOAD_FAILED}: Access denied - please accept license on Hugging Face"
+                        404 -> "${Constants.ERROR_DOWNLOAD_FAILED}: Model not found"
+                        else -> "${Constants.ERROR_DOWNLOAD_FAILED}: HTTP ${response.code}"
+                    }
+                    Log.e(Constants.LOG_TAG, errorMsg)
+                    return@withContext Result.failure(Exception(errorMsg))
+                }
 
-            // Check HTTP response code
-            val responseCode = connection.responseCode
-            if (responseCode != HttpURLConnection.HTTP_OK) {
-                val errorMsg = "${Constants.ERROR_DOWNLOAD_FAILED}: HTTP $responseCode"
-                Log.e(Constants.LOG_TAG, errorMsg)
-                return@withContext Result.failure(Exception(errorMsg))
-            }
+                // Get total size (handle both full and range responses)
+                val totalSize = if (response.code == 206) {
+                    // Partial content response
+                    val contentRange = response.header("Content-Range")
+                    contentRange?.substringAfter("/")?.toLongOrNull() ?: 0L
+                } else {
+                    response.body?.contentLength() ?: 0L
+                }
 
-            // Get file size
-            val totalSize = connection.contentLengthLong
-            Log.d(Constants.LOG_TAG, "File size: ${totalSize / (1024 * 1024)}MB")
+                Log.d(Constants.LOG_TAG, "Total file size: ${totalSize / (1024 * 1024)}MB")
 
-            // Download with progress tracking
-            var downloadedSize = 0L
-            val buffer = ByteArray(Constants.DOWNLOAD_BUFFER_SIZE)
+                // Download with progress tracking
+                var downloadedSize = startByte
+                val buffer = ByteArray(Constants.DOWNLOAD_BUFFER_SIZE)
 
-            connection.inputStream.use { input ->
-                modelFile.outputStream().use { output ->
-                    var bytesRead: Int
-                    var lastProgressUpdate = 0L
+                response.body?.byteStream()?.use { input ->
+                    modelFile.outputStream().use { output ->
+                        // Position output stream for resume
+                        if (startByte > 0) {
+                            output.channel.position(startByte)
+                        }
 
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                        downloadedSize += bytesRead
+                        var bytesRead: Int
+                        var lastProgressUpdate = 0L
 
-                        // Update progress every second
-                        val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastProgressUpdate > 1000 || downloadedSize == totalSize) {
-                            val progress = if (totalSize > 0) {
-                                downloadedSize.toFloat() / totalSize
-                            } else {
-                                0f
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            output.write(buffer, 0, bytesRead)
+                            downloadedSize += bytesRead
+
+                            // Update progress every second
+                            val currentTime = System.currentTimeMillis()
+                            if (currentTime - lastProgressUpdate > 1000 || downloadedSize == totalSize) {
+                                val progress = if (totalSize > 0) {
+                                    downloadedSize.toFloat() / totalSize
+                                } else {
+                                    0f
+                                }
+
+                                withContext(Dispatchers.Main) {
+                                    onProgress(progress)
+                                }
+
+                                val downloadedMB = downloadedSize / (1024 * 1024)
+                                val totalMB = totalSize / (1024 * 1024)
+                                Log.d(
+                                    Constants.LOG_TAG,
+                                    "Download progress: ${downloadedMB}MB / ${totalMB}MB (${(progress * 100).toInt()}%)"
+                                )
+
+                                lastProgressUpdate = currentTime
                             }
-
-                            withContext(Dispatchers.Main) {
-                                onProgress(progress)
-                            }
-
-                            val downloadedMB = downloadedSize / (1024 * 1024)
-                            val totalMB = totalSize / (1024 * 1024)
-                            Log.d(
-                                Constants.LOG_TAG,
-                                "Download progress: ${downloadedMB}MB / ${totalMB}MB (${(progress * 100).toInt()}%)"
-                            )
-
-                            lastProgressUpdate = currentTime
                         }
                     }
                 }
             }
-
-            connection.disconnect()
 
             // Verify download
             if (!modelFile.exists() || modelFile.length() == 0L) {
@@ -141,21 +173,19 @@ class ModelDownloader(private val context: Context) {
         } catch (e: java.net.SocketTimeoutException) {
             val errorMsg = "${Constants.ERROR_DOWNLOAD_FAILED}: Connection timeout"
             Log.e(Constants.LOG_TAG, errorMsg, e)
-            // Delete partial file
-            modelFile.delete()
+            // Partial file is kept for resume
             Result.failure(Exception(errorMsg, e))
 
         } catch (e: java.io.IOException) {
-            val errorMsg = "${Constants.ERROR_DOWNLOAD_FAILED}: Network error"
+            val errorMsg = "${Constants.ERROR_DOWNLOAD_FAILED}: Network error - ${e.message}"
             Log.e(Constants.LOG_TAG, errorMsg, e)
-            // Delete partial file
-            modelFile.delete()
+            // Partial file is kept for resume
             Result.failure(Exception(errorMsg, e))
 
         } catch (e: Exception) {
             val errorMsg = "${Constants.ERROR_DOWNLOAD_FAILED}: ${e.message}"
             Log.e(Constants.LOG_TAG, errorMsg, e)
-            // Delete partial file
+            // Delete partial file on unexpected errors
             modelFile.delete()
             Result.failure(e)
         }

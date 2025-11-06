@@ -54,6 +54,12 @@ dependencies {
     // MediaPipe GenAI API - Gemma 3n LiteRT LM推論用
     implementation("com.google.mediapipe:tasks-genai:0.10.27")
 
+    // OkHttp for resumable downloads
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Encrypted SharedPreferences for secure token storage
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
     // Compose & Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

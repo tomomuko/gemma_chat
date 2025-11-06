@@ -40,11 +40,61 @@ fun GemmaScreen(
         ) {
             when (val state = uiState) {
                 is UiState.Initializing -> LoadingScreen("Initializing...")
+                is UiState.NeedToken -> TokenInputScreen(viewModel)
                 is UiState.Downloading -> DownloadingScreen(state.progress)
                 is UiState.Loading -> LoadingScreen(state.message)
                 is UiState.Ready -> ChatScreen(state, viewModel)
                 is UiState.Error -> ErrorScreen(state.message)
             }
+        }
+    }
+}
+
+/**
+ * Token input screen
+ */
+@Composable
+fun TokenInputScreen(viewModel: GemmaViewModel) {
+    var tokenText by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "Hugging Face Token Required",
+            style = MaterialTheme.typography.headlineSmall
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "This app needs a Hugging Face token to download the model.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        OutlinedTextField(
+            value = tokenText,
+            onValueChange = { tokenText = it },
+            label = { Text("Hugging Face Token") },
+            placeholder = { Text("hf_...") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = { viewModel.saveTokenAndDownload(tokenText) },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = tokenText.startsWith("hf_")
+        ) {
+            Text("Save Token & Download Model")
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        TextButton(
+            onClick = { /* TODO: Open Hugging Face token URL */ }
+        ) {
+            Text("Get Token from Hugging Face")
         }
     }
 }
