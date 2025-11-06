@@ -3,6 +3,8 @@ package com.example.gemmabench.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,18 +23,33 @@ fun GemmaScreen(
     viewModel: GemmaViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var showSettings by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Gemma 3n Chat") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    if (showSettings) {
+        SettingsScreen(
+            settingsManager = viewModel.settingsManager,
+            onNavigateBack = { showSettings = false }
+        )
+    } else {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Gemma 3n Chat") },
+                    actions = {
+                        // Settings button (only show when ready)
+                        if (uiState is UiState.Ready) {
+                            IconButton(onClick = { showSettings = true }) {
+                                Icon(Icons.Default.Settings, "設定")
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
                 )
-            )
-        }
-    ) { paddingValues ->
+            }
+        ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -46,6 +63,7 @@ fun GemmaScreen(
                 is UiState.Ready -> ChatScreen(state, viewModel)
                 is UiState.Error -> ErrorScreen(state.message)
             }
+        }
         }
     }
 }

@@ -9,6 +9,7 @@ import com.example.gemmabench.inference.GenerationMetrics
 import com.example.gemmabench.inference.StreamingResult
 import com.example.gemmabench.utils.Constants
 import com.example.gemmabench.utils.ModelDownloader
+import com.example.gemmabench.utils.SettingsManager
 import com.example.gemmabench.utils.TokenManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +29,7 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
     private val inference = GemmaInference(application)
     private val downloader = ModelDownloader(application)
     private val tokenManager = TokenManager(application)
+    val settingsManager = SettingsManager(application)
 
     private val _uiState = MutableStateFlow<UiState>(UiState.Initializing)
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -76,7 +78,8 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.value = UiState.Loading("Loading model...\nThis may take 30-60 seconds")
 
                 val modelPath = downloader.getModelPath().absolutePath
-                inference.initialize(modelPath)
+                val settings = settingsManager.getSettings()
+                inference.initialize(modelPath, settings.maxTokens)
                     .onSuccess { delegate ->
                         Log.i(Constants.LOG_TAG, "Initialization successful: delegate=$delegate")
                         _uiState.value = UiState.Ready(
@@ -84,7 +87,8 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
                             outputText = "",
                             metrics = GenerationMetrics(delegate = delegate),
                             isGenerating = false,
-                            errorMessage = null
+                            errorMessage = null,
+                            maxDisplayLength = settings.maxDisplayLength
                         )
                     }
                     .onFailure { error ->
@@ -120,21 +124,31 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        // Get current settings
+        val settings = settingsManager.getSettings()
+
         // Update state to generating
         _uiState.value = currentState.copy(
             isGenerating = true,
             outputText = "",
-            errorMessage = null
+            errorMessage = null,
+            maxDisplayLength = settings.maxDisplayLength
         )
 
         val startTime = System.currentTimeMillis()
         var firstTokenTime: Long? = null
         var tokenCount = 0
 
+        // Create generation config from settings
+        val config = com.example.gemmabench.inference.GenerationConfig(
+            topK = settings.topK,
+            temperature = settings.temperature
+        )
+
         generationJob = viewModelScope.launch {
-            inference.generateStreaming(prompt)
+            inference.generateStreaming(prompt, config)
                 .onStart {
-                    Log.d(Constants.LOG_TAG, "Generation started")
+                    Log.d(Constants.LOG_TAG, "Generation started with settings: maxTokens=${settings.maxTokens}, topK=${settings.topK}, temp=${settings.temperature}")
                 }
                 .catch { error ->
                     val errorMsg = "Generation error: ${error.message}"
@@ -268,21 +282,18 @@ sealed class UiState {
         val outputText: String,
         val metrics: GenerationMetrics,
         val isGenerating: Boolean,
-        val errorMessage: String?
+        val errorMessage: String?,
+        val maxDisplayLength: Int = 50_000  // Default, will be overridden by settings
     ) : UiState() {
         /**
          * Display text (truncated if too long to prevent memory issues)
          */
         val displayText: String
-            get() = if (outputText.length > MAX_DISPLAY_LENGTH) {
-                "...(truncated)...\n" + outputText.takeLast(MAX_DISPLAY_LENGTH)
+            get() = if (outputText.length > maxDisplayLength) {
+                "...(truncated ${outputText.length - maxDisplayLength} chars)...\n" + outputText.takeLast(maxDisplayLength)
             } else {
                 outputText
             }
-
-        companion object {
-            private const val MAX_DISPLAY_LENGTH = 10_000  // 10,000 characters
-        }
     }
 
     /** Error state */
