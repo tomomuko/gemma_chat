@@ -71,7 +71,7 @@ fun SettingsScreen(
                 }
             )
 
-            Divider()
+            HorizontalDivider()
 
             // Custom settings
             Text(

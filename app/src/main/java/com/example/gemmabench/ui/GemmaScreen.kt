@@ -5,8 +5,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -397,9 +397,9 @@ fun MetricsCard(metrics: com.example.gemmabench.inference.GenerationMetrics) {
                 ) {
                     Icon(
                         imageVector = if (expanded)
-                            Icons.Default.ExpandLess
+                            Icons.Default.KeyboardArrowUp
                         else
-                            Icons.Default.ExpandMore,
+                            Icons.Default.KeyboardArrowDown,
                         contentDescription = if (expanded) "Hide Details" else "Show Details",
                         modifier = Modifier.size(20.dp)
                     )
@@ -409,7 +409,7 @@ fun MetricsCard(metrics: com.example.gemmabench.inference.GenerationMetrics) {
             // Detailed metrics (shown when expanded)
             if (expanded) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Column(
