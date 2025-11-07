@@ -302,6 +302,9 @@ sealed class StreamingResult {
     /** Token generated */
     data class TokenGenerated(val text: String) : StreamingResult()
 
+    /** Token limit reached (generation stopped because MAX_TOKENS exceeded) */
+    data class TokenLimitReached(val tokenCount: Int) : StreamingResult()
+
     /** Generation completed */
     data class Completed(val metrics: GenerationMetrics, val fullText: String) : StreamingResult()
 

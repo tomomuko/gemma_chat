@@ -46,14 +46,21 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
      *
      * 1. Check if model exists in internal storage
      * 2. Verify model integrity
-     * 3. Download with token if needed
+     * 3. Download with token if needed (skip if model exists)
      * 4. Initialize inference
+     *
+     * Note: If model is already downloaded, token is not required
+     * This solves the cache clear issue where token was lost but model remains
      */
     private fun initializeModel() {
         viewModelScope.launch {
             try {
-                // Check if model exists in internal storage
-                if (!downloader.isModelDownloaded()) {
+                // Check if model is already downloaded and valid
+                // Bug#2 Fix: If model exists, we don't need token - just proceed to initialization
+                if (downloader.isModelDownloaded() && downloader.verifyModelIntegrity()) {
+                    Log.i(Constants.LOG_TAG, "Model already exists and verified, proceeding to initialization")
+                    // Skip to inference initialization (no download needed)
+                } else {
                     Log.i(Constants.LOG_TAG, "Model not found or incomplete")
 
                     // Delete partial/corrupted file if exists
@@ -81,30 +88,23 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
                         _uiState.value = UiState.Error(errorMsg)
                         return@launch
                     }
-                }
 
-                // Verify model file integrity before initialization
-                if (!downloader.verifyModelIntegrity()) {
-                    Log.w(Constants.LOG_TAG, "Model file integrity check failed, deleting and retrying")
-                    downloader.deleteModel()
+                    // Verify downloaded file integrity
+                    if (!downloader.verifyModelIntegrity()) {
+                        Log.w(Constants.LOG_TAG, "Downloaded file integrity check failed, deleting and retrying")
+                        downloader.deleteModel()
 
-                    // Check for token to retry download
-                    val token = tokenManager.getToken()
-                    if (token == null) {
-                        _uiState.value = UiState.Error("Model corrupted and no token available for re-download. Please input token again.")
-                        return@launch
-                    }
+                        Log.i(Constants.LOG_TAG, "Retrying download after integrity check failure")
+                        _uiState.value = UiState.Downloading(0f)
 
-                    Log.i(Constants.LOG_TAG, "Retrying download after corruption detection")
-                    _uiState.value = UiState.Downloading(0f)
-
-                    downloader.downloadModel(token) { progress ->
-                        _uiState.value = UiState.Downloading(progress)
-                    }.onFailure { error ->
-                        val errorMsg = "Retry download failed: ${error.message}"
-                        Log.e(Constants.LOG_TAG, errorMsg, error)
-                        _uiState.value = UiState.Error(errorMsg)
-                        return@launch
+                        downloader.downloadModel(token) { progress ->
+                            _uiState.value = UiState.Downloading(progress)
+                        }.onFailure { error ->
+                            val errorMsg = "Retry download failed: ${error.message}"
+                            Log.e(Constants.LOG_TAG, errorMsg, error)
+                            _uiState.value = UiState.Error(errorMsg)
+                            return@launch
+                        }
                     }
                 }
 
@@ -212,6 +212,17 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
                             val state = _uiState.value as? UiState.Ready ?: return@collect
                             _uiState.value = state.copy(
                                 outputText = state.outputText + result.text
+                            )
+                        }
+
+                        is StreamingResult.TokenLimitReached -> {
+                            // Bug#3 fix: Token limit reached, notify user
+                            Log.w(Constants.LOG_TAG, "Token limit reached at ${result.tokenCount} tokens")
+
+                            val state = _uiState.value as? UiState.Ready ?: return@collect
+                            _uiState.value = state.copy(
+                                isGenerating = false,
+                                errorMessage = "⚠️ Generation stopped: Token limit reached (${result.tokenCount} tokens). Try a shorter prompt or increase MAX_TOKENS in settings."
                             )
                         }
 

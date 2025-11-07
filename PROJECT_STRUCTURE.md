@@ -1601,49 +1601,36 @@ Button(onClick = {
   - [GemmaInference.kt:73-232](app/src/main/java/com/example/gemmabench/inference/GemmaInference.kt#L73-L232): Prefill/Decode時間分離、トークンタイムスタンプ、メモリ計測
   - [GemmaScreen.kt:330-444](app/src/main/java/com/example/gemmabench/ui/GemmaScreen.kt#L330-L444): 展開可能なメトリクスカード UI実装
 
-### 9.2 保留タスク（v1.2リリース）
-- ⏳ バグ#2対応（キャッシュ問題）- P1
-- ⏳ バグ#3対応（トークン数オーバーUX）- P2
+#### v1.2リリース（キャッシュ問題・UX改善）✅ **実装完了 - 2025-11-07**
+- ✅ **バグ#2対応**: キャッシュクリア後のトークン問題解決
+  - [GemmaViewModel.kt:44-109](app/src/main/java/com/example/gemmabench/ui/GemmaViewModel.kt#L44-L109): モデル存在時はトークン不要の判定追加
+  - キャッシュクリア後でもモデルファイルが残っていればそのまま初期化可能
+  - ユーザーがトークンを再入力する必要がなくなる
+
+- ✅ **バグ#3対応**: トークン数オーバーUX改善
+  - [GemmaInference.kt:305-306](app/src/main/java/com/example/gemmabench/inference/GemmaInference.kt#L305-L306): `TokenLimitReached` StreamingResult クラス新規追加
+  - [GemmaScreen.kt:213-230](app/src/main/java/com/example/gemmabench/ui/GemmaScreen.kt#L213-L230): 500文字以上のプロンプトで警告表示
+  - [GemmaViewModel.kt:218-227](app/src/main/java/com/example/gemmabench/ui/GemmaViewModel.kt#L218-L227): TokenLimitReached イベント処理で明示的な通知表示
+  - ユーザーが長すぎるプロンプトの危険性を認識可能
+
+### 9.3 保留タスク（v1.3以降）
 - ⏳ 改善案#1調査・実装（ハードウェアアクセラレーション詳細）- P2
 - ⏳ SHA-256チェックサム検証実装
 - ⏳ トークン実API検証実装
 
-### 9.3 次のステップ候補
+### 9.4 将来の拡張（v1.3以降）
 
-#### 短期（v1.1リリース目標）
-1. **バグ#1修正**（P0、2時間）
-   - ファイルサイズ検証厳密化
-   - Error状態からの復帰UI
-   - 初期化前整合性チェック
+#### v1.3推奨機能
+- **改善案#1調査・実装**: ハードウェアアクセラレーション詳細表示（P2）
+  - MediaPipe GenAI API でデリゲート情報取得可能か調査
+  - デバイスのSoC自動検出精度向上
 
-2. **バグ#4修正**（P1、1時間）
-   - ダウンロード再開ロジック修正
-   - FileOutputStream append mode使用
-
-3. **改善案#2実装**（P1、3時間）
-   - DetailedGenerationMetrics実装
-   - 詳細メトリクス収集
-   - 展開可能なメトリクスカードUI
-
-#### 中期（v1.2リリース目標）
-1. **バグ#2対応**（P1、2時間）
-   - トークン保存方法変更（DataStore）
-   - または内部ストレージ暗号化ファイル
-
-2. **バグ#3対応**（P2、1.5時間）
-   - トークンカウント警告
-   - MAX_TOKENS到達通知
-   - 動的設定UI
-
-3. **改善案#1調査**（P2、調査2時間+実装2時間）
-   - MediaPipe API調査
-   - 可能なら実装
-
-#### 長期（v2.0検討）
-- チャット履歴保存
-- プロンプトテンプレート
-- 複数モデル対応
-- 改善案#3（メトリクスエクスポート）
+#### v2.0検討機能
+- チャット履歴保存とエクスポート
+- プロンプトテンプレート機能
+- 複数モデル対応（他の Gemma バージョン）
+- パフォーマンスメトリクスのCSV/JSON エクスポート
+- オフラインモデル選択UI
 
 ---
 

@@ -210,6 +210,25 @@ fun ChatScreen(state: UiState.Ready, viewModel: GemmaViewModel) {
             maxLines = 5
         )
 
+        // Long prompt warning (Bug#3 fix: warn user about token limits)
+        if (promptText.length > 500) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            ) {
+                Text(
+                    text = "⚠️ Long prompt detected (${promptText.length} chars). Generation may be limited by token ceiling.",
+                    modifier = Modifier.padding(12.dp),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+
         // Action buttons
         Row(
             modifier = Modifier.fillMaxWidth(),
