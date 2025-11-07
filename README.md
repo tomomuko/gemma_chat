@@ -56,11 +56,22 @@ cd gemma_chat
 
 ### 3. ビルド
 
+**重要**: JDK 17 環境が必須です
+
 ```bash
-./gradlew assembleDebug
+# JDK 17 環境設定
+export JAVA_HOME="C:\Program Files\Java\jdk-17"  # Windows
+
+# ビルド実行
+./gradlew clean assembleDebug
 ```
 
 または Android Studio の `Run` ボタンから実行
+
+**ビルド結果**:
+- 出力: `app/build/outputs/apk/debug/app-debug.apk` (84MB)
+- ビルド時間: ~13秒
+- コンパイル警告: ゼロ（Material3準拠、最新API対応）
 
 ### 4. インストール
 
@@ -211,6 +222,32 @@ const val RANDOM_SEED = 101        // 乱数シード
 2. Clean Build: `./gradlew clean`
 3. 依存関係確認: `implementation("com.google.mediapipe:tasks-genai:0.10.27")`
 
+### JDK バージョンエラー
+
+**症状**: `The supplied javaHome seems to be invalid. I cannot find the java executable.`
+
+**解決方法**:
+```bash
+# JDK 17 をインストール: C:\Program Files\Java\jdk-17
+# または環境変数設定
+export JAVA_HOME="C:\Program Files\Java\jdk-17"
+
+# Gradle デーモンリセット
+./gradlew --stop
+
+# ビルド再実行
+./gradlew clean assembleDebug
+```
+
+### Material3 アイコンエラー
+
+**症状**: `Unresolved reference 'ExpandMore'` / `'ExpandLess'`
+
+**解決方法** (既に修正済み):
+- ExpandMore/ExpandLess → KeyboardArrowDown/KeyboardArrowUp に変更
+- これらのアイコンは `material.icons.filled` パッケージに存在
+- コミット: 399461c で修正完了
+
 ## 技術詳細
 
 ### MediaPipe GenAI API
@@ -262,6 +299,26 @@ LiteRT LM形式の大規模言語モデルを効率的に実行するAPI:
 1. LogcatでGemmaBenchタグのログを確認
 2. GitHub Issuesに報告
 3. [MediaPipe Documentation](https://ai.google.dev/edge/mediapipe/solutions/genai/llm_inference/android)を参照
+
+## 最新ビルド情報
+
+**更新日**: 2025-11-07
+**バージョン**: v1.2 (versionCode=3, versionName="1.2")
+**ビルド状態**: ✅ 成功 - 警告ゼロ
+
+### v1.2 完成内容
+- ✅ JDK 17 環境設定完了
+- ✅ Material3 アイコン インポート修正 (ExpandMore/ExpandLess → KeyboardArrowDown/KeyboardArrowUp)
+- ✅ 非推奨 API 修正 (Divider → HorizontalDivider)
+- ✅ Gradle 8.13 で完全互換確認
+- ✅ Kotlin 2.0.21 対応確認
+- ✅ APK 生成完了 (84MB、警告ゼロ)
+
+### 次のリリース予定
+- **v1.3**: ハードウェアアクセラレーション詳細表示
+- **v2.0**: チャット履歴保存、複数モデル対応
+
+詳細は [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) を参照してください。
 
 ---
 

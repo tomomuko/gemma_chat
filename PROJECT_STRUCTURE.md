@@ -1,7 +1,8 @@
 # Gemma 3n Chatbot - プロジェクト全体構成ドキュメント
 
-**最終更新**: 2025-11-07
-**バージョン**: v1.0
+**最終更新**: 2025-11-07 (ビルド成功、v1.2完成)
+**バージョン**: v1.2 (versionCode=3, versionName="1.2")
+**ビルド状態**: ✅ 成功 - 警告なし (APK 84MB生成完了)
 **目的**: 作業再開のための完全なコード定義とアーキテクチャリファレンス
 
 ---
@@ -1587,6 +1588,34 @@ Button(onClick = {
 - ✅ プロジェクト構成ドキュメント作成
 - ✅ GitHub Release作成（Web UI経由、手動）
 
+#### ビルド修正（2025-11-07）✅ **完了**
+- ✅ **JDK 17環境設定**
+  - JAVA_HOME を `C:\Program Files\Java\jdk-17` に設定
+  - Gradle 8.13 で完全互換確認
+  - Kotlin 2.0.21対応確認
+
+- ✅ **Material3 アイコン インポート修正**
+  - ExpandMore/ExpandLess → KeyboardArrowDown/KeyboardArrowUp に変更
+  - これらのアイコンは material.icons.filled パッケージに存在
+  - [GemmaScreen.kt:8-9](app/src/main/java/com/example/gemmabench/ui/GemmaScreen.kt#L8-L9)
+  - [GemmaScreen.kt:400-402](app/src/main/java/com/example/gemmabench/ui/GemmaScreen.kt#L400-L402)
+
+- ✅ **非推奨 API 修正**
+  - Divider() → HorizontalDivider() に統一
+  - Material3 準拠の最新API使用
+  - [GemmaScreen.kt:412](app/src/main/java/com/example/gemmabench/ui/GemmaScreen.kt#L412)
+  - [SettingsScreen.kt:74](app/src/main/java/com/example/gemmabench/ui/SettingsScreen.kt#L74)
+
+- ✅ **ビルド成功**
+  - ビルド時間: 13秒
+  - 生成APK: app/build/outputs/apk/debug/app-debug.apk (84MB)
+  - コンパイル警告: **ゼロ**
+  - コミット: 399461c
+
+- ✅ **Git コミット**
+  - メッセージ: `fix: Material3 アイコン インポートと非推奨警告を修正`
+  - 変更ファイル: GemmaScreen.kt, SettingsScreen.kt
+
 #### v1.1リリース（バグ修正・改善）✅ **完了 - 2025-11-07**
 - ✅ **バグ#1修正**: ダウンロード失敗時クラッシュループ解消
   - [ModelDownloader.kt:40-85](app/src/main/java/com/example/gemmabench/utils/ModelDownloader.kt#L40-L85): `isModelDownloaded()` 厳密化、`verifyModelIntegrity()` 新規追加
@@ -1636,18 +1665,41 @@ Button(onClick = {
 
 ## 10. ビルド手順
 
+### 10.0 環境設定（重要）
+
+**JDK 17 の設定**:
+```bash
+# Windows の場合
+set JAVA_HOME=C:\Program Files\Java\jdk-17
+set PATH=%JAVA_HOME%\bin;%PATH%
+
+# または Gradle に直接指定
+./gradlew -Dorg.gradle.java.home="C:\Program Files\Java\jdk-17" assembleDebug
+```
+
+**Gradle デーモンリセット**（ビルドエラーが出た場合）:
+```bash
+./gradlew --stop
+rm -rf .gradle build app/build
+```
+
 ### 10.1 デバッグビルド
 ```bash
-./gradlew assembleDebug
+export JAVA_HOME="C:\Program Files\Java\jdk-17"
+./gradlew clean assembleDebug
 ```
 **出力**: `app/build/outputs/apk/debug/app-debug.apk` (84MB)
+**ビルド時間**: ~13秒（キャッシュ有効時）
+**警告**: ゼロ（Material3準拠）
 
 ### 10.2 リリースビルド
 ```bash
-./gradlew assembleRelease
+export JAVA_HOME="C:\Program Files\Java\jdk-17"
+./gradlew clean assembleRelease
 ```
 **ProGuard**: 有効（`proguard-rules.pro`適用）
 **最小化**: 有効
+**署名**: 手動署名が必要
 
 ### 10.3 インストール
 ```bash
@@ -1660,8 +1712,21 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 ### 10.4 クリーンビルド
 ```bash
+export JAVA_HOME="C:\Program Files\Java\jdk-17"
 ./gradlew clean
-./gradlew assembleDebug
+./gradlew -Dorg.gradle.java.home="C:\Program Files\Java\jdk-17" assembleDebug
+```
+
+### 10.5 ビルド確認方法
+```bash
+# Gradle バージョン確認
+./gradlew --version
+
+# Java バージョン確認
+java -version
+
+# ビルド詳細ログ
+./gradlew assembleDebug --info
 ```
 
 ---
