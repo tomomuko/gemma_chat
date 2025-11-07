@@ -33,21 +33,55 @@ class ModelDownloader(private val context: Context) {
     /**
      * Check if model is already downloaded and valid
      *
-     * @return true if model exists and valid
+     * Verifies file exists and has exact expected size
+     *
+     * @return true if model exists with correct size
      */
     fun isModelDownloaded(): Boolean {
         val modelFile = getModelPath()
         val exists = modelFile.exists()
-        val isValid = exists && modelFile.length() > 0
+        val expectedSize = Constants.MODEL_SIZE_MB * 1024 * 1024
+        val isValid = exists && modelFile.length() == expectedSize
 
         if (exists) {
             val sizeMB = modelFile.length() / (1024 * 1024)
-            Log.d(Constants.LOG_TAG, "Model found: size=${sizeMB}MB, valid=$isValid")
+            Log.d(Constants.LOG_TAG, "Model found: size=${sizeMB}MB, valid=$isValid (expected=${Constants.MODEL_SIZE_MB}MB)")
         } else {
             Log.d(Constants.LOG_TAG, "Model not found in internal storage")
         }
 
         return isValid
+    }
+
+    /**
+     * Verify model file integrity
+     *
+     * Checks if file is corrupted or incomplete
+     *
+     * @return true if file is valid and complete
+     */
+    fun verifyModelIntegrity(): Boolean {
+        val modelFile = getModelPath()
+        if (!modelFile.exists()) {
+            Log.w(Constants.LOG_TAG, "Model file does not exist for integrity check")
+            return false
+        }
+
+        val expectedSize = Constants.MODEL_SIZE_MB * 1024 * 1024
+        val actualSize = modelFile.length()
+
+        if (actualSize < expectedSize) {
+            Log.w(Constants.LOG_TAG, "Model file is incomplete: $actualSize / $expectedSize bytes")
+            return false
+        }
+
+        if (actualSize > expectedSize) {
+            Log.w(Constants.LOG_TAG, "Model file is corrupted (oversized): $actualSize / $expectedSize bytes")
+            return false
+        }
+
+        Log.d(Constants.LOG_TAG, "Model file integrity verified")
+        return true
     }
 
     /**
@@ -118,12 +152,8 @@ class ModelDownloader(private val context: Context) {
                 val buffer = ByteArray(Constants.DOWNLOAD_BUFFER_SIZE)
 
                 response.body?.byteStream()?.use { input ->
-                    modelFile.outputStream().use { output ->
-                        // Position output stream for resume
-                        if (startByte > 0) {
-                            output.channel.position(startByte)
-                        }
-
+                    // Use FileOutputStream with append mode for proper resume support
+                    java.io.FileOutputStream(modelFile, startByte > 0).use { output ->
                         var bytesRead: Int
                         var lastProgressUpdate = 0L
 

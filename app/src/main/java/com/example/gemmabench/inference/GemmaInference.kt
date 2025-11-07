@@ -98,8 +98,10 @@ class GemmaInference(private val context: Context) {
 
             val startTime = System.currentTimeMillis()
             var firstTokenTime: Long? = null
+            var prefillEndTime: Long? = null
             var tokenCount = 0
             val fullText = StringBuilder()
+            val tokenTimestamps = mutableListOf<Long>()
 
             // Add input prompt
             session.addQueryChunk(prompt)
@@ -110,25 +112,59 @@ class GemmaInference(private val context: Context) {
             // Generate response asynchronously
             session.generateResponseAsync { partialResult, done ->
                 tokenCount++
+                val currentTime = System.currentTimeMillis()
 
-                // Record first token time
+                // Record first token time and prefill end time
                 if (firstTokenTime == null && partialResult.isNotEmpty()) {
-                    firstTokenTime = System.currentTimeMillis() - startTime
+                    firstTokenTime = currentTime - startTime
+                    prefillEndTime = currentTime
                     Log.d(Constants.LOG_TAG, "First token time: ${firstTokenTime}ms")
                 }
+
+                // Record token timestamp for per-token analysis
+                tokenTimestamps.add(currentTime)
 
                 // Append generated text
                 fullText.append(partialResult)
                 trySend(StreamingResult.TokenGenerated(partialResult))
 
                 if (done) {
-                    // Calculate performance metrics
-                    val totalTime = System.currentTimeMillis() - startTime
+                    // Calculate detailed performance metrics
+                    val totalTime = currentTime - startTime
+                    val prefillTime = prefillEndTime?.minus(startTime) ?: 0L
+                    val decodeTime = currentTime - (prefillEndTime ?: startTime)
+
+                    // Calculate per-token timing statistics
+                    val tokenIntervals = tokenTimestamps.zipWithNext { a, b -> b - a }
+                    val minTokenTime = tokenIntervals.minOrNull() ?: 0L
+                    val maxTokenTime = tokenIntervals.maxOrNull() ?: 0L
+                    val avgTokenTime = if (tokenIntervals.isNotEmpty()) {
+                        tokenIntervals.average().toFloat()
+                    } else {
+                        0f
+                    }
+
+                    // Calculate tokens per second for prefill and decode phases
+                    val prefillTokensPerSec = if (prefillTime > 0) {
+                        (1000f) / prefillTime  // First token is essentially the prefill phase
+                    } else {
+                        0f
+                    }
+
+                    val decodeTokensPerSec = if (decodeTime > 0 && tokenCount > 1) {
+                        ((tokenCount - 1) * 1000f) / decodeTime
+                    } else {
+                        0f
+                    }
+
                     val tokensPerSec = if (totalTime > 0) {
                         (tokenCount * 1000f) / totalTime
                     } else {
                         0f
                     }
+
+                    // Estimate memory usage
+                    val memoryUsedMB = estimateMemoryUsage()
 
                     val metrics = GenerationMetrics(
                         firstTokenMs = firstTokenTime ?: 0L,
@@ -137,12 +173,32 @@ class GemmaInference(private val context: Context) {
                         delegate = detectedDelegate
                     )
 
-                    Log.i(
-                        Constants.LOG_TAG,
-                        "Generation complete: tokens=$tokenCount, time=${totalTime}ms, speed=${tokensPerSec}tok/s"
+                    // Also create detailed metrics for potential future use
+                    val detailedMetrics = DetailedGenerationMetrics(
+                        firstTokenMs = firstTokenTime ?: 0L,
+                        totalTokens = tokenCount,
+                        tokensPerSec = tokensPerSec,
+                        delegate = detectedDelegate,
+                        prefillTimeMs = prefillTime,
+                        decodeTimeMs = decodeTime,
+                        prefillTokensPerSec = prefillTokensPerSec,
+                        decodeTokensPerSec = decodeTokensPerSec,
+                        minTokenTimeMs = minTokenTime,
+                        maxTokenTimeMs = maxTokenTime,
+                        avgTokenTimeMs = avgTokenTime,
+                        memoryUsedMB = memoryUsedMB,
+                        deviceInfo = DeviceInfo.detect(context)
                     )
 
-                    // Send completion
+                    Log.i(
+                        Constants.LOG_TAG,
+                        "Generation complete: tokens=$tokenCount, time=${totalTime}ms, speed=${tokensPerSec}tok/s, " +
+                        "prefill=${prefillTime}ms, decode=${decodeTime}ms, memory=${memoryUsedMB}MB"
+                    )
+
+                    Log.d(Constants.LOG_TAG, "Detailed metrics: ${detailedMetrics.formatDetailedDisplay()}")
+
+                    // Send completion with basic metrics
                     trySend(StreamingResult.Completed(metrics, fullText.toString()))
 
                     // Clean up session
@@ -162,6 +218,17 @@ class GemmaInference(private val context: Context) {
         awaitClose {
             Log.d(Constants.LOG_TAG, "Generation flow closed")
         }
+    }
+
+    /**
+     * Estimate current memory usage
+     *
+     * @return Estimated memory usage in MB
+     */
+    private fun estimateMemoryUsage(): Long {
+        val runtime = Runtime.getRuntime()
+        val usedMemory = runtime.totalMemory() - runtime.freeMemory()
+        return usedMemory / (1024 * 1024)
     }
 
     /**

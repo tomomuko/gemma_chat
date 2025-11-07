@@ -5,6 +5,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -328,12 +330,16 @@ fun ChatScreen(state: UiState.Ready, viewModel: GemmaViewModel) {
 }
 
 /**
- * Performance metrics card
+ * Performance metrics card with expansion capability
  */
 @Composable
 fun MetricsCard(metrics: com.example.gemmabench.inference.GenerationMetrics) {
+    var expanded by remember { mutableStateOf(false) }
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer
@@ -342,18 +348,100 @@ fun MetricsCard(metrics: com.example.gemmabench.inference.GenerationMetrics) {
         Column(
             modifier = Modifier.padding(12.dp)
         ) {
-            Text(
-                text = "Performance Metrics",
-                style = MaterialTheme.typography.titleSmall
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = metrics.formatForDisplay(),
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace
-                )
-            )
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "Performance Metrics",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = metrics.formatForDisplay(),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace
+                        )
+                    )
+                }
+
+                // Expand/Collapse button
+                IconButton(
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = if (expanded)
+                            Icons.Default.ExpandLess
+                        else
+                            Icons.Default.ExpandMore,
+                        contentDescription = if (expanded) "Hide Details" else "Show Details",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // Detailed metrics (shown when expanded)
+            if (expanded) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp)
+                ) {
+                    Text(
+                        text = "Detailed Breakdown:",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Detailed metrics items
+                    DetailMetricRow("Total Tokens", "${metrics.totalTokens}")
+                    DetailMetricRow("First Token", "${metrics.firstTokenMs}ms")
+                    DetailMetricRow("Token Speed", "${String.format("%.2f", metrics.tokensPerSec)} tok/s")
+                    DetailMetricRow("Delegate", metrics.delegate)
+
+                    Text(
+                        text = "Note: Complete timing breakdown available in debug logs",
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
         }
+    }
+}
+
+/**
+ * Individual metric row for detailed view
+ */
+@Composable
+fun DetailMetricRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontFamily = FontFamily.Monospace
+            )
+        )
     }
 }
 

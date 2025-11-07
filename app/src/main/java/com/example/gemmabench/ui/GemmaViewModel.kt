@@ -45,14 +45,23 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
      * Initialize the model
      *
      * 1. Check if model exists in internal storage
-     * 2. Download with token if needed
-     * 3. Initialize inference
+     * 2. Verify model integrity
+     * 3. Download with token if needed
+     * 4. Initialize inference
      */
     private fun initializeModel() {
         viewModelScope.launch {
             try {
                 // Check if model exists in internal storage
                 if (!downloader.isModelDownloaded()) {
+                    Log.i(Constants.LOG_TAG, "Model not found or incomplete")
+
+                    // Delete partial/corrupted file if exists
+                    if (downloader.getModelPath().exists()) {
+                        Log.w(Constants.LOG_TAG, "Removing corrupted/partial model file")
+                        downloader.deleteModel()
+                    }
+
                     // Check for saved token
                     val token = tokenManager.getToken()
                     if (token == null) {
@@ -61,13 +70,38 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
                         return@launch
                     }
 
-                    Log.i(Constants.LOG_TAG, "Model not found, starting download")
+                    Log.i(Constants.LOG_TAG, "Starting model download with token")
                     _uiState.value = UiState.Downloading(0f)
 
                     downloader.downloadModel(token) { progress ->
                         _uiState.value = UiState.Downloading(progress)
                     }.onFailure { error ->
                         val errorMsg = "Download failed: ${error.message}"
+                        Log.e(Constants.LOG_TAG, errorMsg, error)
+                        _uiState.value = UiState.Error(errorMsg)
+                        return@launch
+                    }
+                }
+
+                // Verify model file integrity before initialization
+                if (!downloader.verifyModelIntegrity()) {
+                    Log.w(Constants.LOG_TAG, "Model file integrity check failed, deleting and retrying")
+                    downloader.deleteModel()
+
+                    // Check for token to retry download
+                    val token = tokenManager.getToken()
+                    if (token == null) {
+                        _uiState.value = UiState.Error("Model corrupted and no token available for re-download. Please input token again.")
+                        return@launch
+                    }
+
+                    Log.i(Constants.LOG_TAG, "Retrying download after corruption detection")
+                    _uiState.value = UiState.Downloading(0f)
+
+                    downloader.downloadModel(token) { progress ->
+                        _uiState.value = UiState.Downloading(progress)
+                    }.onFailure { error ->
+                        val errorMsg = "Retry download failed: ${error.message}"
                         Log.e(Constants.LOG_TAG, errorMsg, error)
                         _uiState.value = UiState.Error(errorMsg)
                         return@launch
