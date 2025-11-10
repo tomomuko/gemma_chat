@@ -1222,7 +1222,196 @@ fun GemmaBenchTheme(
 
 ---
 
-### バグ #3: トークン数オーバー時のUX問題
+### バグ #3: Error状態からの自動復帰がない
+
+**深刻度**: 🔴 Critical
+
+**症状**:
+- ダウンロード失敗後、Error状態に遷移する
+- ユーザーが再試行ボタンを押さない限り、自動復帰しない
+- アプリを一度落とすまで、手動で復帰操作ができない
+
+**再現手順**:
+1. 有効なトークンを入力してダウンロード開始
+2. ダウンロード中にネットワークを切断
+3. ダウンロード失敗 → Error状態に遷移
+4. ユーザーが操作不可（再試行ボタンがない）
+5. アプリを落とさないと復帰不可
+
+**根本原因**:
+- `GemmaScreen.kt` の `ErrorScreen()` が再試行ボタンを実装していない
+- Error状態から自動復帰するロジックがない
+- モバイルネットワーク環境では通信が不安定なため、頻繁に失敗する可能性
+
+**影響範囲**:
+- すべてのダウンロード失敗シナリオ
+- モバイルネットワーク環境での使用
+- ユーザーエクスペリエンスの低下
+
+**修正案**:
+1. **Error画面に再試行ボタンを追加**:
+   ```kotlin
+   @Composable
+   fun ErrorScreen(message: String, viewModel: GemmaViewModel) {
+       Card(modifier = Modifier.fillMaxWidth()) {
+           Column(
+               modifier = Modifier
+                   .fillMaxWidth()
+                   .padding(16.dp),
+               horizontalAlignment = Alignment.CenterHorizontally
+           ) {
+               Icon(
+                   painter = painterResource(id = android.R.drawable.ic_dialog_alert),
+                   contentDescription = "Error",
+                   tint = MaterialTheme.colorScheme.error,
+                   modifier = Modifier.size(48.dp)
+               )
+
+               Text(
+                   text = "エラーが発生しました",
+                   style = MaterialTheme.typography.headlineSmall,
+                   color = MaterialTheme.colorScheme.error
+               )
+
+               Text(
+                   text = message,
+                   style = MaterialTheme.typography.bodyMedium,
+                   modifier = Modifier.padding(top = 8.dp)
+               )
+
+               // 再試行ボタン
+               Button(
+                   onClick = { viewModel.retryInitialize() },
+                   modifier = Modifier
+                       .fillMaxWidth()
+                       .padding(top = 16.dp)
+               ) {
+                   Text("再試行")
+               }
+
+               // キャンセルボタン（トークンを削除して最初に戻る）
+               TextButton(
+                   onClick = { viewModel.clearAndReset() },
+                   modifier = Modifier.fillMaxWidth()
+               ) {
+                   Text("トークンをクリア")
+               }
+           }
+       }
+   }
+   ```
+
+2. **GemmaViewModelに再試行メソッドを追加**:
+   ```kotlin
+   fun retryInitialize() {
+       viewModelScope.launch {
+           _uiState.value = UiState.Initializing
+           initializeModel()
+       }
+   }
+
+   fun clearAndReset() {
+       tokenManager.deleteToken()
+       downloader.deleteModel()
+       _uiState.value = UiState.Initializing
+       initializeModel()
+   }
+   ```
+
+**優先度**: P0（次リリースで必須修正）
+
+---
+
+### バグ #4: モデルファイルの検証不足 - 毎回ダウンロードが開始される
+
+**深刻度**: 🔴 Critical
+
+**症状**:
+- アプリを起動するたびにモデルのダウンロードが開始される
+- ダウンロードが100%になっても、アプリを再起動すると再びダウンロードが始まる
+- ダウンロード済みのモデルが正しく認識されない
+
+**再現手順**:
+1. アプリ起動
+2. モデルを完全にダウンロード（100%）
+3. もう一度モデルのダウンロードが始まる（100%）。
+4. アプリが Ready状態に遷移
+
+**根本原因（推定）**:
+- `downloader.isModelDownloaded()` のファイルサイズチェックが不完全
+- ダウンロード完了後のファイル検証が不十分
+- `Constants.MODEL_SIZE_MB = 4400L` とファイルの実際のサイズが一致していない可能性
+- 部分ダウンロードファイルが残ったままになっている
+
+**影響範囲**:
+- すべてのユーザー
+- ネットワーク帯域幅の無駄
+
+**関連コード**:
+- [ModelDownloader.kt:266-272](app/src/main/java/com/example/gemmabench/utils/ModelDownloader.kt#L266-L272) - `isModelDownloaded()`
+- [Constants.kt:129-130](app/src/main/java/com/example/gemmabench/utils/Constants.kt#L129-L130) - `MODEL_SIZE_MB`
+
+**修正案**:
+1. **ファイルサイズの正確な測定**:
+   ```kotlin
+   fun isModelDownloaded(): Boolean {
+       val modelFile = getModelPath()
+       if (!modelFile.exists()) {
+           Log.d(Constants.LOG_TAG, "Model file does not exist")
+           return false
+       }
+
+       val fileSize = modelFile.length()
+       val expectedSize = Constants.MODEL_SIZE_MB * 1024 * 1024
+
+       // ファイルサイズが完全に一致する場合のみtrue
+       val isValid = fileSize == expectedSize
+
+       Log.d(Constants.LOG_TAG,
+           "Model check: exists=${modelFile.exists()}, " +
+           "size=${fileSize / (1024 * 1024)}MB, " +
+           "expected=${Constants.MODEL_SIZE_MB}MB, " +
+           "valid=$isValid"
+       )
+
+       return isValid
+   }
+   ```
+
+2. **SHA-256チェックサム検証の追加**（将来実装）:
+   ```kotlin
+   fun verifyModelChecksum(): Boolean {
+       val modelFile = getModelPath()
+       if (!modelFile.exists()) return false
+
+       val actualChecksum = calculateSHA256(modelFile)
+       val expectedChecksum = Constants.MODEL_CHECKSUM
+
+       return actualChecksum == expectedChecksum
+   }
+
+   private fun calculateSHA256(file: File): String {
+       val digest = MessageDigest.getInstance("SHA-256")
+       file.inputStream().use { input ->
+           val buffer = ByteArray(8192)
+           var bytesRead: Int
+           while (input.read(buffer).also { bytesRead = it } != -1) {
+               digest.update(buffer, 0, bytesRead)
+           }
+       }
+       return digest.digest().joinToString("") { "%02x".format(it) }
+   }
+   ```
+
+3. **ダウンロード中に別ファイルが残るバグ対策**:
+   - ダウンロード開始時に古い部分ファイルを削除
+   - ダウンロード完了後、一時ファイル名から本ファイル名にリネーム
+
+**優先度**: P0（次リリースで必須修正）
+
+---
+
+### バグ #5: トークン数オーバー時のUX問題
 
 **深刻度**: 🟡 Medium
 
