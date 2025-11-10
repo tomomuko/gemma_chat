@@ -63,7 +63,7 @@ fun GemmaScreen(
                 is UiState.Downloading -> DownloadingScreen(state.progress)
                 is UiState.Loading -> LoadingScreen(state.message)
                 is UiState.Ready -> ChatScreen(state, viewModel)
-                is UiState.Error -> ErrorScreen(state.message)
+                is UiState.Error -> ErrorScreen(state.message, viewModel)
             }
         }
         }
@@ -465,10 +465,12 @@ fun DetailMetricRow(label: String, value: String) {
 }
 
 /**
- * Error screen
+ * Error screen with retry and reset options
+ *
+ * Bug#3 fix: Added retry button for failed initialization
  */
 @Composable
-fun ErrorScreen(message: String) {
+fun ErrorScreen(message: String, viewModel: GemmaViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -493,6 +495,33 @@ fun ErrorScreen(message: String) {
                 modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.bodyMedium
             )
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Retry button
+        Button(
+            onClick = { viewModel.retryInitialize() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+        ) {
+            Text("Retry")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Reset and clear button
+        OutlinedButton(
+            onClick = { viewModel.clearAndReset() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.error
+            )
+        ) {
+            Text("Clear Token & Retry")
         }
     }
 }

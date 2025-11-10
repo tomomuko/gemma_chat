@@ -295,6 +295,30 @@ class GemmaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Retry initialization after error
+     *
+     * Bug#3 fix: Allows user to retry after download/initialization failure
+     */
+    fun retryInitialize() {
+        Log.i(Constants.LOG_TAG, "Retrying initialization...")
+        _uiState.value = UiState.Initializing
+        initializeModel()
+    }
+
+    /**
+     * Clear token and reset to initial state
+     *
+     * Bug#3 fix: Allows user to start over with a new token
+     */
+    fun clearAndReset() {
+        Log.i(Constants.LOG_TAG, "Clearing token and resetting...")
+        tokenManager.deleteToken()
+        downloader.deleteModel()
+        _uiState.value = UiState.Initializing
+        initializeModel()
+    }
+
+    /**
      * Clean up resources
      */
     override fun onCleared() {
