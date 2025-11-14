@@ -12,7 +12,7 @@ object Constants {
     // Model configuration
     const val MODEL_NAME = "gemma-3n-E4B-it-int4.litertlm"
     const val MODEL_URL = "https://huggingface.co/google/gemma-3n-E4B-it-litert-lm/resolve/main/$MODEL_NAME"
-    const val MODEL_SIZE_MB = 4400L  // 4.4GB
+    const val MODEL_SIZE_MB = 4436L  // 4.436GB (actual size: 4,652,318,720 bytes)
     const val MODEL_CHECKSUM = ""  // TODO: Add SHA-256 checksum for validation
 
     // Hugging Face API
