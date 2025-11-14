@@ -33,22 +33,29 @@ class ModelDownloader(private val context: Context) {
     /**
      * Check if model is already downloaded and valid
      *
-     * Verifies file exists and has exact expected size
+     * Verifies file exists and has reasonable size
      *
-     * @return true if model exists with correct size
+     * Note: Checks if file exists and is larger than 4000MB (to detect partial downloads)
+     *
+     * @return true if model exists with reasonable size
      */
     fun isModelDownloaded(): Boolean {
         val modelFile = getModelPath()
-        val exists = modelFile.exists()
-        val expectedSize = Constants.MODEL_SIZE_MB * 1024 * 1024
-        val isValid = exists && modelFile.length() == expectedSize
-
-        if (exists) {
-            val sizeMB = modelFile.length() / (1024 * 1024)
-            Log.d(Constants.LOG_TAG, "Model found: size=${sizeMB}MB, valid=$isValid (expected=${Constants.MODEL_SIZE_MB}MB)")
-        } else {
+        if (!modelFile.exists()) {
             Log.d(Constants.LOG_TAG, "Model not found in internal storage")
+            return false
         }
+
+        val actualSize = modelFile.length()
+        val minSize = 4000L * 1024 * 1024  // Minimum 4000MB to be considered complete
+        val isValid = actualSize >= minSize
+
+        val sizeMB = actualSize / (1024 * 1024)
+        val sizeBytes = actualSize
+        Log.d(Constants.LOG_TAG,
+            "Model check: size=${sizeMB}MB (${sizeBytes} bytes), " +
+            "minRequired=4000MB, valid=$isValid"
+        )
 
         return isValid
     }
@@ -57,6 +64,8 @@ class ModelDownloader(private val context: Context) {
      * Verify model file integrity
      *
      * Checks if file is corrupted or incomplete
+     *
+     * Note: Checks if file exists and is larger than 4000MB (to detect partial downloads)
      *
      * @return true if file is valid and complete
      */
@@ -67,20 +76,17 @@ class ModelDownloader(private val context: Context) {
             return false
         }
 
-        val expectedSize = Constants.MODEL_SIZE_MB * 1024 * 1024
         val actualSize = modelFile.length()
+        val minSize = 4000L * 1024 * 1024  // Minimum 4000MB to be considered complete
 
-        if (actualSize < expectedSize) {
-            Log.w(Constants.LOG_TAG, "Model file is incomplete: $actualSize / $expectedSize bytes")
+        if (actualSize < minSize) {
+            val sizeMB = actualSize / (1024 * 1024)
+            Log.w(Constants.LOG_TAG, "Model file is incomplete: ${sizeMB}MB (${actualSize} bytes), minRequired=4000MB")
             return false
         }
 
-        if (actualSize > expectedSize) {
-            Log.w(Constants.LOG_TAG, "Model file is corrupted (oversized): $actualSize / $expectedSize bytes")
-            return false
-        }
-
-        Log.d(Constants.LOG_TAG, "Model file integrity verified")
+        val sizeMB = actualSize / (1024 * 1024)
+        Log.d(Constants.LOG_TAG, "Model file integrity verified: ${sizeMB}MB (${actualSize} bytes)")
         return true
     }
 
@@ -98,9 +104,9 @@ class ModelDownloader(private val context: Context) {
         val modelFile = getModelPath()
 
         try {
-            // Check if model already exists and is complete
-            if (modelFile.exists() && modelFile.length() == Constants.MODEL_SIZE_MB * 1024 * 1024) {
-                Log.i(Constants.LOG_TAG, "Model already downloaded")
+            // Check if model already exists and is complete (using isModelDownloaded for consistency)
+            if (isModelDownloaded()) {
+                Log.i(Constants.LOG_TAG, "Model already downloaded, skipping download")
                 return@withContext Result.success(modelFile.absolutePath)
             }
 
@@ -195,8 +201,9 @@ class ModelDownloader(private val context: Context) {
                 return@withContext Result.failure(Exception(errorMsg))
             }
 
-            val finalSizeMB = modelFile.length() / (1024 * 1024)
-            Log.i(Constants.LOG_TAG, "Download complete: size=${finalSizeMB}MB, path=${modelFile.absolutePath}")
+            val finalSize = modelFile.length()
+            val finalSizeMB = finalSize / (1024 * 1024)
+            Log.i(Constants.LOG_TAG, "Download complete: size=${finalSizeMB}MB (${finalSize} bytes), path=${modelFile.absolutePath}")
 
             Result.success(modelFile.absolutePath)
 
